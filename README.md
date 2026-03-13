@@ -1,4 +1,4 @@
-# Expert Thermal — Heat Sink API v1.0.0
+# Expert Thermal — Heat Sink API
 
 A high-performance, Python API for computing heat sink thermal resistance and semiconductor junction temperatures. This project utilizes established fluid dynamics and heat transfer correlations to provide accurate thermal modeling for electronics cooling applications.
 
