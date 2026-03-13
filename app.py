@@ -3,24 +3,13 @@ from flask import Flask, jsonify, request
 from thermal_model import compute_thermal_model
 
 app = Flask(__name__)
-app.config["JSON_SORT_KEYS"] = False  
+app.config["JSON_SORT_KEYS"] = False   # preserve logical key order in response
 
 
-# Structured response
-def build_response(raw: dict, status: str = "success") -> dict:
-    """
-    Convert flat model output into a clean, nested enterprise-grade response.
-
-    Top-level sections:
-      meta               — request metadata (timestamp, version, status)
-      inputs             — key input parameters echoed back for traceability
-      thermal_resistances — full resistance network breakdown  [degC/W]
-      geometry            — fin geometry derived values
-      flow                — convective flow characterisation
-      results             — primary engineering outputs
-    """
+# Structured response 
+def build_response(raw: dict, Q: float, T_ambient: float, V: float, status: str = "success") -> dict:
     return {
-        # 1. Metadata
+        # 1. Metadata 
         "meta": {
             "status":    status,
             "version":   "1.0.0",
@@ -33,11 +22,11 @@ def build_response(raw: dict, status: str = "success") -> dict:
             }
         },
 
-        # 2. Key inputs echoed for traceability
+        # 2. Key inputs echoed for traceability 
         "inputs": {
-            "thermal_design_power_W":  150,
-            "ambient_temperature_C":   25,
-            "air_velocity_m_per_s":    1.0,
+            "thermal_design_power_W":  Q,
+            "ambient_temperature_C":   T_ambient,
+            "air_velocity_m_per_s":    V,
             "n_fins":                  60,
             "fin_height_m":            0.0245,
             "fin_thickness_m":         0.0008,
@@ -50,9 +39,9 @@ def build_response(raw: dict, status: str = "success") -> dict:
             "kinematic_viscosity_m2_s": 1.568e-5
         },
 
-        # 3. Thermal resistance network
+        # 3. Thermal resistance network 
         "thermal_resistances": {
-            "R_jc":   raw["R_jc_C_per_W"],      # Junction-to-case
+            "R_jc":   raw["R_jc_C_per_W"],      # Junction-to-case (from datasheet)
             "R_TIM":  raw["R_TIM_C_per_W"],      # Thermal Interface Material
             "R_cond": raw["R_cond_C_per_W"],     # Conduction through HS base
             "R_conv": raw["R_conv_C_per_W"],     # Convection over fins
@@ -60,7 +49,7 @@ def build_response(raw: dict, status: str = "success") -> dict:
             "R_total": raw["R_total_C_per_W"]    # R_jc + R_TIM + R_hs
         },
 
-        # 4. Fin geometry
+        # 4. Fin geometry 
         "geometry": {
             "fin_spacing_m":      raw["fin_spacing_m"],
             "area_single_fin_m2": raw["area_single_fin_m2"],
@@ -69,7 +58,7 @@ def build_response(raw: dict, status: str = "success") -> dict:
             "A_total_m2":         raw["A_total_m2"]
         },
 
-        # 5. Flow characterisation
+        # 5. Flow characterisation 
         "flow": {
             "reynolds_number":           raw["reynolds_number"],
             "nusselt_number":            raw["nusselt_number"],
@@ -77,14 +66,14 @@ def build_response(raw: dict, status: str = "success") -> dict:
             "regime":                    raw["flow_regime"]
         },
 
-        # 6. Primary results
+        # 6. Primary results 
         "results": {
             "junction_temperature_C": raw["T_junction_C"]
         }
     }
 
 
-# Routes
+# Routes 
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -98,12 +87,13 @@ def health():
 @app.route("/thermal", methods=["GET"])
 def thermal():
     try:
+        # Accept optional query-string overrides so the API is actually useful
         Q         = float(request.args.get("Q",         150))
         T_ambient = float(request.args.get("T_ambient", 25))
         V         = float(request.args.get("V",         1.0))
 
         raw      = compute_thermal_model(Q=Q, T_ambient=T_ambient, V=V)
-        response = build_response(raw, status="success")
+        response = build_response(raw, Q=Q, T_ambient=T_ambient, V=V, status="success")
         return jsonify(response), 200
 
     except (ValueError, TypeError) as exc:
